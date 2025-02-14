@@ -5,30 +5,53 @@ import pyomo.environ as pyo
 model = pyo.ConcreteModel()
 
 # Define model parameters
-##########################################
-############ CODE TO ADD HERE ############
-##########################################
+model.H2inNH3 = pyo.Param(initialize=0.18)
+model.H2inCH4 = pyo.Param(initialize=0.25)
+model.CO2inCH4 = pyo.Param(initialize=2.75)
+model.volumeBoat = pyo.Param(initialize=200000.)
+model.densityNH3 = pyo.Param(initialize=0.6)
+model.densityCH4 = pyo.Param(initialize=0.5)
+model.LHV_NH3 = pyo.Param(initialize=18.5) #GJ/t
+model.LHV_CH4 = pyo.Param(initialize=50.) #GJ/t
+model.losses_NH3 = pyo.Param(initialize=0.4)
+model.losses_CH4 = pyo.Param(initialize=0.35) 
+model.maxBoats = pyo.Param(initialize=100.)
+model.maxEnergy = pyo.Param(initialize=140*1E6*3.6) #MJ
+model.maxCO2 = pyo.Param(initialize=14E6)
+
 
 # Define model variables
-##########################################
-############ CODE TO ADD HERE ############
-##########################################
+model.boatsNH3 = pyo.Var(domain=pyo.NonNegativeReals)
+model.boatsCH4 = pyo.Var(domain=pyo.NonNegativeReals)
 
-# Define the objective functions
-##########################################
-############ CODE TO ADD HERE ############
-##########################################
+# Define objective function
+model.objective = pyo.Objective(expr=model.boatsCH4*model.volumeBoat*model.densityCH4*model.H2inCH4+model.boatsNH3*model.volumeBoat*model.densityNH3*model.H2inNH3, sense=pyo.maximize)
 
-# Define the constraints
-##########################################
-############ CODE TO ADD HERE ############
-##########################################
+# Define constraints
+def maxBoats(model):
+    return model.boatsNH3+model.boatsCH4 <= model.maxBoats
 
-# Specify the path towards your solver (gurobi) file
-solver = pyo.SolverFactory('...')
+model.maxBoatsConstr = pyo.Constraint(rule=maxBoats)
+
+def maxEnergy(model):
+    return model.boatsNH3*model.volumeBoat*model.densityNH3*model.LHV_NH3/(1.-model.losses_NH3) + model.boatsCH4*model.volumeBoat*model.densityCH4*model.LHV_CH4/(1-model.losses_CH4) <= model.maxEnergy
+
+model.maxEnergyConstr = pyo.Constraint(rule=maxEnergy)
+
+def maxCO2(model):
+    return model.boatsCH4*model.volumeBoat*model.densityCH4*model.CO2inCH4 <= model.maxCO2
+
+model.maxCO2Constr = pyo.Constraint(rule=maxCO2)
+
+model.dual = pyo.Suffix(direction=pyo.Suffix.IMPORT)
+model.rc = pyo.Suffix(direction=pyo.Suffix.IMPORT)
+
+solver = pyo.SolverFactory('gurobi')
 sol = solver.solve(model)
 
-# Print here the number of CH4 boats and NH3 boats
-##########################################
-############ CODE TO ADD HERE ############
-##########################################
+
+print(model.boatsCH4.value)
+print(model.boatsNH3.value)
+model.display()
+model.dual.display()
+model.rc.display()
